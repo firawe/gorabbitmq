@@ -1,8 +1,8 @@
 package gorabbitmq
 
 import (
-	"github.com/isayme/go-amqp-reconnect/rabbitmq"
-	"github.com/streadway/amqp"
+	"github.com/Noobygames/amqp"
+	"github.com/Noobygames/go-amqp-reconnect/rabbitmq"
 )
 
 // ConnectionSettings holds settings for a rabbitMQConnector connection

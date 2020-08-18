@@ -3,9 +3,9 @@ package gorabbitmq
 import (
 	"errors"
 	"fmt"
-	"github.com/isayme/go-amqp-reconnect/rabbitmq"
-	locallog "github.com/prometheus/common/log"
-	"github.com/streadway/amqp"
+	"github.com/Noobygames/amqp"
+	"github.com/Noobygames/go-amqp-reconnect/rabbitmq"
+	"log"
 	"sync"
 )
 
@@ -22,17 +22,16 @@ type RabbitMQ interface {
 	QueueDelete(name string, ifUnused, ifEmpty, noWait bool) (int, error)
 	Publish(exchange, key string, mandatory, immediate bool, msg amqp.Publishing) error
 	Consume(queue, consumer string, autoAck, exclusive, noLocal, noWait bool, prefetchCount, prefetchSize int, args amqp.Table) <-chan amqp.Delivery //deprecated
-	Reconnect() error                                                                                                                                //deprecated
 	CreateChannel() (*rabbitmq.Channel, error)
 	ConsumeQos(queue, consumer string, autoAck, exclusive, noLocal, noWait bool, prefetchCount, prefetchSize int, args amqp.Table) (<-chan amqp.Delivery, error)
 	PublishWithChannel(channel *rabbitmq.Channel, exchange, key string, mandatory, immediate bool, msg amqp.Publishing) error
 }
 
 type service struct {
-	uri          string
-	pubMutex     sync.Mutex
-	publishChan  *rabbitmq.Channel
-	conn         *rabbitmq.Connection
+	uri         string
+	pubMutex    sync.Mutex
+	publishChan *rabbitmq.Channel
+	conn        *rabbitmq.Connection
 }
 
 func NewRabbitMQ(settings ConnectionSettings) (RabbitMQ, error) {
@@ -50,7 +49,7 @@ func NewRabbitMQ(settings ConnectionSettings) (RabbitMQ, error) {
 
 	rabbitMQ.uri = uri.String()
 	if err := rabbitMQ.connect(); err != nil {
-		locallog.Error(prefix, err)
+		log.Print(prefix, err)
 		return &rabbitMQ, err
 	}
 
@@ -86,12 +85,12 @@ func (s *service) CreateChannel() (*rabbitmq.Channel, error) {
 func (s *service) createChannel() (*rabbitmq.Channel, error) {
 	if s.conn == nil {
 		err := errors.New(prefix + "no connection available")
-		locallog.Error(prefix, err)
+		log.Print(prefix, err)
 		return nil, err
 	}
 	channel, err := s.conn.Channel()
 	if err != nil {
-		locallog.Error(prefix, err)
+		log.Print(prefix, err)
 		return channel, err
 	}
 
@@ -158,7 +157,7 @@ func (s *service) PublishWithChannel(channel *rabbitmq.Channel, exchange, key st
 	}
 	err := channel.Publish(exchange, key, mandatory, immediate, msg)
 	if err != nil {
-		locallog.Error(prefix, err)
+		log.Print(prefix, err)
 		return err
 	}
 	return nil
@@ -176,7 +175,7 @@ func (s *service) Publish(exchange, key string, mandatory, immediate bool, msg a
 	}
 	err := s.publishChan.Publish(exchange, key, mandatory, immediate, msg)
 	if err != nil {
-		locallog.Error(prefix, err)
+		log.Print(prefix, err)
 		return err
 	}
 	return nil
@@ -185,7 +184,7 @@ func (s *service) Publish(exchange, key string, mandatory, immediate bool, msg a
 func (s *service) ConsumeQos(queue, consumer string, autoAck, exclusive, noLocal, noWait bool, prefetchCount, prefetchSize int, args amqp.Table) (<-chan amqp.Delivery, error) {
 	channel, err := s.conn.Channel()
 	if err != nil {
-		locallog.Error(err)
+		log.Print(err)
 		return nil, err
 	}
 	if err = channel.Qos(prefetchCount, prefetchSize, false); err != nil {
@@ -217,7 +216,7 @@ func (s *service) Consume(queue, consumer string, autoAck, exclusive, noLocal, n
 	config.channelWrapper = channelWrapper
 	if s.conn == nil {
 		err := errors.New(prefix + "no connection available")
-		locallog.Error(prefix, err)
+		log.Print(prefix, err)
 		return *channelWrapper.externalDelivery
 	}
 	_ = s.connectConsumerWorker(&config)
@@ -228,17 +227,17 @@ func (s *service) Consume(queue, consumer string, autoAck, exclusive, noLocal, n
 func (s *service) connectConsumerWorker(config *consumerConfig) (err error) {
 	queueChan, err := s.conn.Channel()
 	if err != nil {
-		locallog.Error(prefix, err)
+		log.Print(prefix, err)
 		return
 	}
 	err = queueChan.Qos(config.prefetchCount, config.prefetchSize, false)
 	if err != nil {
-		locallog.Error(prefix, err)
+		log.Print(prefix, err)
 		return
 	}
 	chanDeliveries, err := queueChan.Consume(config.queue, config.consumer, config.autoAck, config.exclusive, config.noLocal, config.noWait, config.args)
 	if err != nil {
-		locallog.Error(prefix, err)
+		log.Print(prefix, err)
 		return
 	}
 	config.channelWrapper.channel = queueChan
@@ -247,7 +246,7 @@ func (s *service) connectConsumerWorker(config *consumerConfig) (err error) {
 	} else {
 		return
 	}
-	locallog.Infof("starting consume worker config=%+v", *config)
+	log.Printf("starting consume worker config=%+v", *config)
 	go runConsumerWorker(config)
 	return nil
 }
@@ -259,7 +258,7 @@ func runConsumerWorker(config *consumerConfig) {
 		case delivery, isOpen := <-*config.originalDelivery:
 			{
 				if !isOpen {
-					locallog.Info(prefix, "consume worker amqp.Delivery channel was closed by rabbitmq server")
+					log.Print(prefix, "consume worker amqp.Delivery channel was closed by rabbitmq server")
 					return
 				}
 				//route message through
@@ -274,19 +273,19 @@ func (s *service) connect() error {
 
 	if s.conn != nil && !s.conn.IsClosed() {
 		if err := s.conn.Close(); err != nil {
-			locallog.Error(err)
+			log.Print(err)
 		}
 	}
 
 	s.conn, err = rabbitmq.Dial(s.uri)
 	if err != nil {
-		locallog.Error(prefix, err)
+		log.Print(prefix, err)
 		return err
 	}
 
 	publishChan, err := s.conn.Channel()
 	if err != nil {
-		locallog.Error(prefix, err)
+		log.Print(prefix, err)
 		return err
 	}
 	s.publishChan = publishChan
@@ -296,14 +295,10 @@ func (s *service) connect() error {
 		false, // global
 	)
 	if err != nil {
-		locallog.Error(prefix, err)
+		log.Print(prefix, err)
 	}
 
-	locallog.Info(prefix, " rabbitmq service is connected!")
-	return nil
-}
-
-func (s *service) Reconnect() error {
+	log.Print(prefix, " rabbitmq service is connected!")
 	return nil
 }
 
