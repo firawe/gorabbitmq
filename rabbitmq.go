@@ -18,6 +18,7 @@ type RabbitMQ interface {
 	ExchangeBind(destination, key, source string, noWait bool, args amqp.Table) error
 	ExchangeDelete(name string, ifUnused, noWait bool) error
 	QueueBind(name, key, exchange string, noWait bool, args amqp.Table) error
+	QueueUnbind(name, key, exchange string, args amqp.Table) error
 	QueueDeclare(name string, durable, autoDelete, exclusive, noWait bool, args amqp.Table) (amqp.Queue, error)
 	QueueDelete(name string, ifUnused, ifEmpty, noWait bool) (int, error)
 	Publish(exchange, key string, mandatory, immediate bool, msg amqp.Publishing) error
@@ -140,6 +141,15 @@ func (s *service) QueueBind(name, key, exchange string, noWait bool, args amqp.T
 	}
 	defer channel.Close()
 	return channel.QueueBind(name, key, exchange, noWait, args)
+}
+
+func (s *service) QueueUnbind(name, key, exchange string, args amqp.Table) error {
+	channel, err := s.conn.Channel()
+	if err != nil {
+		return err
+	}
+	defer channel.Close()
+	return channel.QueueUnbind(name, key, exchange, args)
 }
 
 func (s *service) QueueDeclare(name string, durable, autoDelete, exclusive, noWait bool, args amqp.Table) (amqp.Queue, error) {
