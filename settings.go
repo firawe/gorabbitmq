@@ -2,7 +2,6 @@ package gorabbitmq
 
 import (
 	"github.com/Noobygames/amqp"
-	"github.com/Noobygames/go-amqp-reconnect/rabbitmq"
 )
 
 // ConnectionSettings holds settings for a rabbitMQConnector connection
@@ -53,7 +52,8 @@ type consumerConfig struct {
 }
 
 type channelWrapper struct {
+	errChan          <-chan *amqp.Error
 	originalDelivery *<-chan amqp.Delivery
 	externalDelivery *chan amqp.Delivery
-	channel          *rabbitmq.Channel
+	channel          *Channel
 }
